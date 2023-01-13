@@ -1,23 +1,20 @@
 #include <Arduino.h>
+#include <geometry_msgs/msg/twist.h>
 #include <micro_ros_platformio.h>
-
 #include <rcl/rcl.h>
 #include <rclc/executor.h>
 #include <rclc/rclc.h>
 #include <rmw_microros/rmw_microros.h>
 
-#include <geometry_msgs/msg/twist.h>
-
-#define FS1 2
-#define BRK 13
-#define FWD 3
-#define REV 4
-
+#define FS1 0
+#define FWD 1
+#define REV 2
+#define THR 3
+#define FB 4
+#define BRK_1 5
+#define BRK_2 6
 #define STR 7
-#define THR 10
-#define FBR 11
-#define BRK_0 14
-#define BRK_1 15
+#define BRK_EN 18
 
 #define LED_PIN 13
 
@@ -28,16 +25,17 @@
       return false;                \
     }                              \
   }
-#define EXECUTE_EVERY_N_MS(MS, X)  do { \
-  static volatile int64_t init = -1;    \
-  if (init == -1) {                     \
-    init = uxr_millis();                \
-  }                                     \
-  if (uxr_millis() - init > MS) {       \
-    X;                                  \
-    init = uxr_millis();                \
-  }                                     \
-} while (0)
+#define EXECUTE_EVERY_N_MS(MS, X)      \
+  do {                                 \
+    static volatile int64_t init = -1; \
+    if (init == -1) {                  \
+      init = uxr_millis();             \
+    }                                  \
+    if (uxr_millis() - init > MS) {    \
+      X;                               \
+      init = uxr_millis();             \
+    }                                  \
+  } while (0)
 
 rcl_subscription_t subscriber;
 geometry_msgs__msg__Twist msg;
@@ -71,14 +69,14 @@ void subscription_callback(const void *msgin) {
   }
 
   if (angular > 0) {
-    digitalWrite(BRK_0, HIGH);
-    digitalWrite(BRK_1, LOW);
-  } else if (angular < 0) {
-    digitalWrite(BRK_0, LOW);
     digitalWrite(BRK_1, HIGH);
-  } else {
-    digitalWrite(BRK_0, LOW);
+    digitalWrite(BRK_2, LOW);
+  } else if (angular < 0) {
     digitalWrite(BRK_1, LOW);
+    digitalWrite(BRK_2, HIGH);
+  } else {
+    digitalWrite(BRK_1, LOW);
+    digitalWrite(BRK_2, LOW);
   }
 }
 
@@ -110,8 +108,8 @@ bool destroy_entities() {
   digitalWrite(FWD, LOW);
   digitalWrite(REV, LOW);
 
-  rmw_context_t * rmw_context = rcl_context_get_rmw_context(&support.context);
-  (void) rmw_uros_set_context_entity_destroy_session_timeout(rmw_context, 0);
+  rmw_context_t *rmw_context = rcl_context_get_rmw_context(&support.context);
+  (void)rmw_uros_set_context_entity_destroy_session_timeout(rmw_context, 0);
 
   RCCHECK(rcl_subscription_fini(&subscriber, &node));
   RCCHECK(rclc_executor_fini(&executor));
@@ -123,31 +121,31 @@ bool destroy_entities() {
 
 void setup() {
   // Configure serial transport
-  Serial.begin(115200);
-  set_microros_serial_transports(Serial);
+  Serial3.begin(115200);
+  set_microros_serial_transports(Serial3);
 
   // Configure pins
   pinMode(FS1, OUTPUT);
-  pinMode(BRK, OUTPUT);
+  pinMode(BRK_EN, OUTPUT);
   pinMode(FWD, OUTPUT);
   pinMode(REV, OUTPUT);
   pinMode(STR, OUTPUT);
   pinMode(THR, OUTPUT);
-  pinMode(FBR, OUTPUT);
-  pinMode(BRK_0, OUTPUT);
+  pinMode(FB, OUTPUT);
   pinMode(BRK_1, OUTPUT);
+  pinMode(BRK_2, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
   analogWriteResolution(12);
 
   digitalWrite(FS1, HIGH);
-  digitalWrite(BRK, HIGH);
+  digitalWrite(BRK_EN, HIGH);
   digitalWrite(FWD, LOW);
   digitalWrite(REV, LOW);
   digitalWrite(STR, LOW);
   digitalWrite(THR, LOW);
-  digitalWrite(FBR, LOW);
-  digitalWrite(BRK_0, LOW);
+  digitalWrite(FB, LOW);
   digitalWrite(BRK_1, LOW);
+  digitalWrite(BRK_2, LOW);
   digitalWrite(LED_PIN, LOW);
 
   state = WAITING_AGENT;
@@ -156,7 +154,7 @@ void setup() {
 void loop() {
   switch (state) {
     case WAITING_AGENT:
-      EXECUTE_EVERY_N_MS(500, state = (RMW_RET_OK == rmw_uros_ping_agent(100,1)) ? AGENT_AVAILABLE : WAITING_AGENT);
+      EXECUTE_EVERY_N_MS(500, state = (RMW_RET_OK == rmw_uros_ping_agent(100, 1)) ? AGENT_AVAILABLE : WAITING_AGENT);
       break;
     case AGENT_AVAILABLE:
       state = (true == create_entities()) ? AGENT_CONNECTED : WAITING_AGENT;
