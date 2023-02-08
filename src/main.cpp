@@ -16,7 +16,9 @@
 #define STR 7
 #define BRK_EN 18
 
-#define LED_PIN 13
+#define LED_PIN 21
+#define SET 22
+#define RST 23
 
 #define RCCHECK(fn)                \
   {                                \
@@ -57,27 +59,19 @@ void subscription_callback(const void *msgin) {
   const geometry_msgs__msg__Twist *msg = (const geometry_msgs__msg__Twist *)msgin;
 
   double linear = msg->linear.x;
-  double angular = msg->angular.z * 1000 + 3000;
+  double angular = msg->angular.z;
 
-  analogWrite(THR, abs(linear * 100));
+  analogWrite(THR, map(abs(linear * 1000), 0, 700, 0, 100));
   if (linear >= 0) {
     digitalWrite(FWD, HIGH);
     digitalWrite(REV, LOW);
   } else {
     digitalWrite(FWD, LOW);
-    digitalWrite(REV, HIGH);
+    digitalWrite(REV, LOW);
   }
 
-  if (angular > 0) {
-    digitalWrite(BRK_1, HIGH);
-    digitalWrite(BRK_2, LOW);
-  } else if (angular < 0) {
-    digitalWrite(BRK_1, LOW);
-    digitalWrite(BRK_2, HIGH);
-  } else {
-    digitalWrite(BRK_1, LOW);
-    digitalWrite(BRK_2, LOW);
-  }
+  int val = map(angular * 1000, -400, 400, 0, 255);
+  analogWrite(STR, val);
 }
 
 bool create_entities() {
@@ -121,8 +115,8 @@ bool destroy_entities() {
 
 void setup() {
   // Configure serial transport
-  Serial3.begin(115200);
-  set_microros_serial_transports(Serial3);
+  Serial.begin(115200);
+  set_microros_serial_transports(Serial);
 
   // Configure pins
   pinMode(FS1, OUTPUT);
@@ -135,7 +129,9 @@ void setup() {
   pinMode(BRK_1, OUTPUT);
   pinMode(BRK_2, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
-  analogWriteResolution(12);
+  pinMode(SET, OUTPUT);
+  pinMode(RST, OUTPUT);
+  analogWriteResolution(8);
 
   digitalWrite(FS1, HIGH);
   digitalWrite(BRK_EN, HIGH);
@@ -147,6 +143,8 @@ void setup() {
   digitalWrite(BRK_1, LOW);
   digitalWrite(BRK_2, LOW);
   digitalWrite(LED_PIN, LOW);
+  digitalWrite(SET, HIGH);
+  digitalWrite(RST, LOW);
 
   state = WAITING_AGENT;
 }
