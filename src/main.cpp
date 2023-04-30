@@ -5,6 +5,8 @@
 #include <rclc/executor.h>
 #include <rclc/rclc.h>
 #include <rmw_microros/rmw_microros.h>
+#include <SPI.h>
+#include <RH_RF95.h>
 
 #define FS1 0
 #define FWD 1
@@ -20,6 +22,20 @@
 #define LED_PIN 21
 #define SET 22
 #define RST 23
+
+// LoRa definitions
+#define RFM95_RST     9
+#define RFM95_CS      10
+#define RFM95_INT     8
+#define RF95_FREQ 915.0
+RH_RF95 rf95(RFM95_CS, RFM95_INT);
+
+// throttle and steering variables
+uint8_t thr_jetson;
+uint8_t thr_lora;
+uint8_t str_jetson;
+uint8_t str_lora;
+bool jetson_enabled;
 
 #define RCCHECK(fn)                \
   {                                \
@@ -61,10 +77,26 @@ double clamp(double var, double min, double max) {
 
 // Twist message Callback
 void subscription_callback(const void *msgin) {
-  const geometry_msgs__msg__Twist *msg = (const geometry_msgs__msg__Twist *)msgin;
 
-  double linear = msg->linear.x;
-  double angular = msg->angular.z;
+  double throttle;
+  double steering;
+
+  if (jetson_enabled) { // alan write in here
+
+    const geometry_msgs__msg__Twist *msg = (const geometry_msgs__msg__Twist *)msgin;
+
+    double linear = msg->linear.x;
+    double angular = msg->angular.z;
+
+    throttle =  map(constrain(linear * 1000, -700, 700), -700, 700, 1.729, 3.729);
+    steering = map(constrain(angular * -1000, -300, 300), -400, 400, 10000, 60000);
+    
+  } else {
+
+    throttle = map(thr_lora, 0, 255, 1.729, 3.729);
+    steering = map(str_lora, 0, 255, 10000, 60000);
+    
+  }
 
   // analogWrite(THR, map(abs(linear * 1000), 0, 700, 0, 100));
   // if (linear >= 0) {
@@ -75,12 +107,18 @@ void subscription_callback(const void *msgin) {
   //   digitalWrite(REV, LOW);
   // }
 
-  int val = map(constrain(angular * -1000, -300, 300), -400, 400, 10000, 60000);
-  analogWrite(STR, 128);
-  analogWriteFrequency(STR, val);
-  double j = map(constrain(linear * 1000, -700, 700), -700, 700, 1.729, 3.729);
-  analogWrite(THR, 128);
-  analogWriteFrequency(THR, 500 / j);
+  analogWrite(THR, 128); // 50% duty cycle for frequency modulation
+  analogWriteFrequency(THR, 500 / throttle); // divide 500 / throttle to get time high (in ms)
+
+  analogWrite(STR, 128); // 50% duty cycle for frequency modulation
+  analogWriteFrequency(STR, steering);
+
+  // int val = map(constrain(angular * -1000, -300, 300), -400, 400, 10000, 60000);
+  // analogWrite(STR, 128);
+  // analogWriteFrequency(STR, val);
+  // double j = map(constrain(linear * 1000, -700, 700), -700, 700, 1.729, 3.729);
+  // analogWrite(THR, 128);
+  // analogWriteFrequency(THR, 500 / j);
 }
 
 bool create_entities() {
@@ -122,9 +160,54 @@ bool destroy_entities() {
   return true;
 }
 
+
 void setup() {
-  // Configure serial transport
+  // setup serial and LoRa
+  pinMode(RFM95_RST, OUTPUT);
+  digitalWrite(RFM95_RST, HIGH);
+
   Serial.begin(115200);
+  while (!Serial) {
+    delay(1);
+  }
+
+  delay(100);
+
+  Serial.println("Feather LoRa TX Test!");
+
+  // manual reset
+  digitalWrite(RFM95_RST, LOW);
+  delay(10);
+  digitalWrite(RFM95_RST, HIGH);
+  delay(10);
+
+  Serial.println("Feather LoRa TX Test2!");
+
+  // Serial.println(rf95.init());
+
+  while (!rf95.init()) {
+    Serial.println("LoRa radio init failed");
+    Serial.println("Uncomment '#define SERIAL_DEBUG' in RH_RF95.cpp for detailed debug info");
+    while (1);
+  }
+  Serial.println("LoRa radio init OK!");
+
+  // Defaults after init are 434.0MHz, modulation GFSK_Rb250Fd250, +13dbM
+  if (!rf95.setFrequency(RF95_FREQ)) {
+    Serial.println("setFrequency failed");
+    while (1);
+  }
+  Serial.print("Set Freq to: "); Serial.println(RF95_FREQ);
+  
+  // Defaults after init are 434.0MHz, 13dBm, Bw = 125 kHz, Cr = 4/5, Sf = 128chips/symbol, CRC on
+
+  // The default transmitter power is 13dBm, using PA_BOOST.
+  // If you are using RFM95/96/97/98 modules which uses the PA_BOOST transmitter pin, then 
+  // you can set transmitter powers from 5 to 23 dBm:
+  rf95.setTxPower(23, false);
+
+  // Configure serial transport
+  // Serial.begin(115200);
   set_microros_serial_transports(Serial);
 
   // Configure pins
@@ -164,6 +247,28 @@ void loop() {
   //   delay(200);
   // }
 
+  uint8_t buf[4];
+  uint8_t len = sizeof(buf);
+
+  if (rf95.recv(buf, &len))
+  {
+    RH_RF95::printBuffer("Received: ", buf, len);
+    // Serial.print("Got: ");
+    // Serial.println((char*)buf);
+    // Serial.print("RSSI: ");
+    // Serial.println(rf95.lastRssi(), DEC);
+
+    // Send a reply
+    uint8_t data[] = "$";
+    rf95.send(data, sizeof(data));
+    rf95.waitPacketSent();
+    Serial.println("Sent a reply");
+  }
+  // else
+  // {
+  //   Serial.println("Receive failed");
+  // }
+
   switch (state) {
     case WAITING_AGENT:
       EXECUTE_EVERY_N_MS(500, state = (RMW_RET_OK == rmw_uros_ping_agent(100, 1)) ? AGENT_AVAILABLE : WAITING_AGENT);
@@ -193,4 +298,6 @@ void loop() {
   } else {
     digitalWrite(LED_PIN, LOW);
   }
+
+  // delay(50);
 }
