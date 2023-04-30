@@ -31,11 +31,11 @@
 RH_RF95 rf95(RFM95_CS, RFM95_INT);
 
 // throttle and steering variables
-uint8_t thr_jetson;
-uint8_t thr_lora;
-uint8_t str_jetson;
-uint8_t str_lora;
-bool jetson_enabled;
+static uint8_t thr_jetson;
+static uint8_t thr_lora;
+static uint8_t str_jetson;
+static uint8_t str_lora;
+static bool jetson_enabled;
 
 #define RCCHECK(fn)                \
   {                                \
@@ -77,48 +77,13 @@ double clamp(double var, double min, double max) {
 
 // Twist message Callback
 void subscription_callback(const void *msgin) {
+  const geometry_msgs__msg__Twist *msg = (const geometry_msgs__msg__Twist *)msgin;
 
-  double throttle;
-  double steering;
+  double linear = msg->linear.x;
+  double angular = msg->angular.z;
 
-  if (jetson_enabled) { // alan write in here
-
-    const geometry_msgs__msg__Twist *msg = (const geometry_msgs__msg__Twist *)msgin;
-
-    double linear = msg->linear.x;
-    double angular = msg->angular.z;
-
-    throttle =  map(constrain(linear * 1000, -700, 700), -700, 700, 1.729, 3.729);
-    steering = map(constrain(angular * -1000, -300, 300), -400, 400, 10000, 60000);
-    
-  } else {
-
-    throttle = map(thr_lora, 0, 255, 1.729, 3.729);
-    steering = map(str_lora, 0, 255, 10000, 60000);
-    
-  }
-
-  // analogWrite(THR, map(abs(linear * 1000), 0, 700, 0, 100));
-  // if (linear >= 0) {
-  //   digitalWrite(FWD, HIGH);
-  //   digitalWrite(REV, LOW);
-  // } else {
-  //   digitalWrite(FWD, LOW);
-  //   digitalWrite(REV, LOW);
-  // }
-
-  analogWrite(THR, 128); // 50% duty cycle for frequency modulation
-  analogWriteFrequency(THR, 500 / throttle); // divide 500 / throttle to get time high (in ms)
-
-  analogWrite(STR, 128); // 50% duty cycle for frequency modulation
-  analogWriteFrequency(STR, steering);
-
-  // int val = map(constrain(angular * -1000, -300, 300), -400, 400, 10000, 60000);
-  // analogWrite(STR, 128);
-  // analogWriteFrequency(STR, val);
-  // double j = map(constrain(linear * 1000, -700, 700), -700, 700, 1.729, 3.729);
-  // analogWrite(THR, 128);
-  // analogWriteFrequency(THR, 500 / j);
+  str_jetson = map(constrain(angular * -1000, -300, 300), -400, 400, 0, 255);
+  thr_jetson = map(constrain(linear * 1000, -700, 700), -700, 700, 0, 255);
 }
 
 bool create_entities() {
@@ -301,5 +266,18 @@ void loop() {
     digitalWrite(LED_PIN, LOW);
   }
 
-  // delay(50);
+  if (jetson_enabled) {  // alan write in here
+    analogWrite(THR, 128);                      // 50% duty cycle for frequency modulation
+    analogWriteFrequency(THR, 500 / map(thr_jetson, 0, 255, 1.729, 3.729));  // divide 500 / throttle to get time high (in ms)
+
+    analogWrite(STR, 128);  // 50% duty cycle for frequency modulation
+    analogWriteFrequency(STR, map(str_jetson, 0, 255, 10000, 60000));
+
+  } else {
+    analogWrite(THR, 128);                      // 50% duty cycle for frequency modulation
+    analogWriteFrequency(THR, 500 / map(thr_lora, 0, 255, 1.729, 3.729));  // divide 500 / throttle to get time high (in ms)
+
+    analogWrite(STR, 128);  // 50% duty cycle for frequency modulation
+    analogWriteFrequency(STR, map(str_lora, 0, 255, 10000, 60000));
+  }
 }
