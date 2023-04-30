@@ -253,6 +253,8 @@ void loop() {
   if (rf95.recv(buf, &len))
   {
     RH_RF95::printBuffer("Received: ", buf, len);
+    thr_lora = buf[3];
+    str_lora = buf[2];
     // Serial.print("Got: ");
     // Serial.println((char*)buf);
     // Serial.print("RSSI: ");
