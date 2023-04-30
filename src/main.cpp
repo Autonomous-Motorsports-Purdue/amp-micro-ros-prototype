@@ -8,8 +8,9 @@
 
 #define FS1 0
 #define FWD 1
-#define REV 2
-#define THR 3
+// #define REV 2
+#define THR 2
+// #define THR 3
 #define FB 4
 #define BRK_1 5
 #define BRK_2 6
@@ -54,6 +55,10 @@ enum states {
   AGENT_DISCONNECTED
 } state;
 
+double clamp(double var, double min, double max) {
+  return var > max ? max : var < min ? min : var;
+}
+
 // Twist message Callback
 void subscription_callback(const void *msgin) {
   const geometry_msgs__msg__Twist *msg = (const geometry_msgs__msg__Twist *)msgin;
@@ -61,17 +66,21 @@ void subscription_callback(const void *msgin) {
   double linear = msg->linear.x;
   double angular = msg->angular.z;
 
-  analogWrite(THR, map(abs(linear * 1000), 0, 700, 0, 100));
-  if (linear >= 0) {
-    digitalWrite(FWD, HIGH);
-    digitalWrite(REV, LOW);
-  } else {
-    digitalWrite(FWD, LOW);
-    digitalWrite(REV, LOW);
-  }
+  // analogWrite(THR, map(abs(linear * 1000), 0, 700, 0, 100));
+  // if (linear >= 0) {
+  //   digitalWrite(FWD, HIGH);
+  //   digitalWrite(REV, LOW);
+  // } else {
+  //   digitalWrite(FWD, LOW);
+  //   digitalWrite(REV, LOW);
+  // }
 
-  int val = map(angular * 1000, -400, 400, 0, 255);
-  analogWrite(STR, val);
+  int val = map(constrain(angular * -1000, -300, 300), -400, 400, 10000, 60000);
+  analogWrite(STR, 128);
+  analogWriteFrequency(STR, val);
+  double j = map(constrain(linear * 1000, -700, 700), -700, 700, 1.729, 3.729);
+  analogWrite(THR, 128);
+  analogWriteFrequency(THR, 500 / j);
 }
 
 bool create_entities() {
@@ -100,7 +109,7 @@ bool create_entities() {
 
 bool destroy_entities() {
   digitalWrite(FWD, LOW);
-  digitalWrite(REV, LOW);
+  // digitalWrite(REV, LOW);
 
   rmw_context_t *rmw_context = rcl_context_get_rmw_context(&support.context);
   (void)rmw_uros_set_context_entity_destroy_session_timeout(rmw_context, 0);
@@ -122,7 +131,7 @@ void setup() {
   pinMode(FS1, OUTPUT);
   pinMode(BRK_EN, OUTPUT);
   pinMode(FWD, OUTPUT);
-  pinMode(REV, OUTPUT);
+  // pinMode(REV, OUTPUT);
   pinMode(STR, OUTPUT);
   pinMode(THR, OUTPUT);
   pinMode(FB, OUTPUT);
@@ -136,9 +145,9 @@ void setup() {
   digitalWrite(FS1, HIGH);
   digitalWrite(BRK_EN, HIGH);
   digitalWrite(FWD, LOW);
-  digitalWrite(REV, LOW);
+  // digitalWrite(REV, LOW);
   digitalWrite(STR, LOW);
-  digitalWrite(THR, LOW);
+  // digitalWrite(THR, LOW);
   digitalWrite(FB, LOW);
   digitalWrite(BRK_1, LOW);
   digitalWrite(BRK_2, LOW);
@@ -150,6 +159,11 @@ void setup() {
 }
 
 void loop() {
+  // for (double_t i = 2.729; i <= 5.002; i+=0.05) {
+  //   tone(THR, 500/i);
+  //   delay(200);
+  // }
+
   switch (state) {
     case WAITING_AGENT:
       EXECUTE_EVERY_N_MS(500, state = (RMW_RET_OK == rmw_uros_ping_agent(100, 1)) ? AGENT_AVAILABLE : WAITING_AGENT);
