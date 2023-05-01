@@ -36,6 +36,7 @@ static uint8_t thr_lora;
 static uint8_t str_jetson;
 static uint8_t str_lora;
 static bool jetson_enabled;
+static bool estop;
 
 #define RCCHECK(fn)                \
   {                                \
@@ -217,9 +218,20 @@ void loop() {
 
   if (rf95.recv(buf, &len))
   {
-    RH_RF95::printBuffer("Received: ", buf, len);
-    thr_lora = buf[3];
-    str_lora = buf[2];
+    // RH_RF95::printBuffer("Received: ", buf, len);
+    Serial.print(" | buf[3]: ");
+    Serial.print((uint8_t) buf[3]);
+    Serial.print(" | buf[2]: ");
+    Serial.print((uint8_t) buf[2]);
+    Serial.print(" | buf[1]: ");
+    Serial.print((uint8_t) buf[1]);
+    Serial.print(" | buf[0]: ");
+    Serial.print((uint8_t) buf[0]);
+    Serial.print(" | ");
+    thr_lora = buf[0];
+    str_lora = buf[1];
+    estop = buf[2] & 0x10;
+    jetson_enabled = buf[2] & 0x08;
     // Serial.print("Got: ");
     // Serial.println((char*)buf);
     // Serial.print("RSSI: ");
@@ -229,12 +241,37 @@ void loop() {
     uint8_t data[] = "$";
     rf95.send(data, sizeof(data));
     rf95.waitPacketSent();
-    Serial.println("Sent a reply");
+    // Serial.println("Sent a reply");
+
+    Serial.print("Throttle: ");
+    Serial.print(thr_lora);
+    Serial.print(" | Steering: ");
+    Serial.print(str_lora);
+    Serial.print(" | Jetson : ");
+    Serial.print(jetson_enabled);
+    Serial.print(" | ESTOP: ");
+    Serial.println(estop);
   }
   // else
   // {
   //   Serial.println("Receive failed");
   // }
+
+  digitalWrite(BRK_1, HIGH);
+  digitalWrite(BRK_2, LOW);
+
+  if (estop) {
+    analogWrite(THR, 128);                      // 50% duty cycle for frequency modulation
+    analogWriteFrequency(THR, 500 / 2.729);  // divide 500 / throttle to get time high (in ms)
+
+    analogWrite(STR, 128);  // 50% duty cycle for frequency modulation
+    analogWriteFrequency(STR, 35000); // hard code middle
+
+    // digitalWrite(BRK_1, LOW);
+    // digitalWrite(BRK_2, HIGH);
+
+    while (1) { };
+  }
 
   switch (state) {
     case WAITING_AGENT:
@@ -275,7 +312,8 @@ void loop() {
 
   } else {
     analogWrite(THR, 128);                      // 50% duty cycle for frequency modulation
-    analogWriteFrequency(THR, 500 / map(thr_lora, 0, 255, 1.729, 3.729));  // divide 500 / throttle to get time high (in ms)
+    // analogWriteFrequency(THR, 500.0 / map((double) thr_lora, 0, 255, 1.729, 3.729));  // divide 500 / throttle to get time high (in ms)
+    analogWriteFrequency(THR, 500.0 / map((double) thr_lora, 0, 255, 0.456, 5.002));  // divide 500 / throttle to get time high (in ms)
 
     analogWrite(STR, 128);  // 50% duty cycle for frequency modulation
     analogWriteFrequency(STR, map(str_lora, 0, 255, 10000, 60000));
