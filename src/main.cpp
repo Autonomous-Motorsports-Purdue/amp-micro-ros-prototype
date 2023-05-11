@@ -36,7 +36,7 @@ static uint8_t thr_lora;
 static uint8_t str_jetson;
 static uint8_t str_lora;
 static bool jetson_enabled;
-static bool estop;
+static bool lora_estop;
 
 #define RCCHECK(fn)                \
   {                                \
@@ -242,7 +242,7 @@ void loop() {
     Serial.print(" | ");
     thr_lora = buf[0];
     str_lora = buf[1];
-    estop = buf[2] & 0x10;
+    lora_estop = buf[2] & 0x10;
     jetson_enabled = buf[2] & 0x08;
     // Serial.print("Got: ");
     // Serial.println((char*)buf);
@@ -262,7 +262,7 @@ void loop() {
     Serial.print(" | Jetson : ");
     Serial.print(jetson_enabled);
     Serial.print(" | ESTOP: ");
-    Serial.println(estop);
+    Serial.println(lora_estop);
   }
   // else
   // {
