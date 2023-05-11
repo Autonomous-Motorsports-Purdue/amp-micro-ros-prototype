@@ -126,6 +126,18 @@ bool destroy_entities() {
   return true;
 }
 
+void estop() {
+  analogWrite(THR, 128);                      // 50% duty cycle for frequency modulation
+  analogWriteFrequency(THR, 500 / 2.729);  // divide 500 / throttle to get time high (in ms)
+
+  analogWrite(STR, 128);  // 50% duty cycle for frequency modulation
+  analogWriteFrequency(STR, 35000); // hard code middle
+
+  // digitalWrite(BRK_1, LOW);
+  // digitalWrite(BRK_2, HIGH);
+
+  while (1) { };
+}
 
 void setup() {
   // setup serial and LoRa
@@ -261,16 +273,7 @@ void loop() {
   digitalWrite(BRK_2, LOW);
 
   if (estop) {
-    analogWrite(THR, 128);                      // 50% duty cycle for frequency modulation
-    analogWriteFrequency(THR, 500 / 2.729);  // divide 500 / throttle to get time high (in ms)
-
-    analogWrite(STR, 128);  // 50% duty cycle for frequency modulation
-    analogWriteFrequency(STR, 35000); // hard code middle
-
-    // digitalWrite(BRK_1, LOW);
-    // digitalWrite(BRK_2, HIGH);
-
-    while (1) { };
+    estop();
   }
 
   switch (state) {
