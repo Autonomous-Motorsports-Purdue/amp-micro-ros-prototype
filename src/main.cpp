@@ -1,12 +1,12 @@
 #include <Arduino.h>
+#include <RH_RF95.h>
+#include <SPI.h>
 #include <geometry_msgs/msg/twist.h>
 #include <micro_ros_platformio.h>
 #include <rcl/rcl.h>
 #include <rclc/executor.h>
 #include <rclc/rclc.h>
 #include <rmw_microros/rmw_microros.h>
-#include <SPI.h>
-#include <RH_RF95.h>
 
 #define FS1 0
 #define FWD 1
@@ -24,9 +24,9 @@
 #define RST 23
 
 // LoRa definitions
-#define RFM95_RST     9
-#define RFM95_CS      10
-#define RFM95_INT     8
+#define RFM95_RST 9
+#define RFM95_CS 10
+#define RFM95_INT 8
 #define RF95_FREQ 915.0
 RH_RF95 rf95(RFM95_CS, RFM95_INT);
 
@@ -38,23 +38,23 @@ static uint8_t str_lora;
 static bool jetson_enabled;
 static bool lora_estop;
 
-#define RCCHECK(fn)                \
-  {                                \
-    rcl_ret_t temp_rc = fn;        \
-    if ((temp_rc != RCL_RET_OK)) { \
-      return false;                \
-    }                              \
+#define RCCHECK(fn)                                                            \
+  {                                                                            \
+    rcl_ret_t temp_rc = fn;                                                    \
+    if ((temp_rc != RCL_RET_OK)) {                                             \
+      return false;                                                            \
+    }                                                                          \
   }
-#define EXECUTE_EVERY_N_MS(MS, X)      \
-  do {                                 \
-    static volatile int64_t init = -1; \
-    if (init == -1) {                  \
-      init = uxr_millis();             \
-    }                                  \
-    if (uxr_millis() - init > MS) {    \
-      X;                               \
-      init = uxr_millis();             \
-    }                                  \
+#define EXECUTE_EVERY_N_MS(MS, X)                                              \
+  do {                                                                         \
+    static volatile int64_t init = -1;                                         \
+    if (init == -1) {                                                          \
+      init = uxr_millis();                                                     \
+    }                                                                          \
+    if (uxr_millis() - init > MS) {                                            \
+      X;                                                                       \
+      init = uxr_millis();                                                     \
+    }                                                                          \
   } while (0)
 
 rcl_subscription_t subscriber;
@@ -78,7 +78,8 @@ double clamp(double var, double min, double max) {
 
 // Twist message Callback
 void subscription_callback(const void *msgin) {
-  const geometry_msgs__msg__Twist *msg = (const geometry_msgs__msg__Twist *)msgin;
+  const geometry_msgs__msg__Twist *msg =
+      (const geometry_msgs__msg__Twist *)msgin;
 
   double linear = msg->linear.x;
   double angular = msg->angular.z;
@@ -94,19 +95,19 @@ bool create_entities() {
   RCCHECK(rclc_support_init(&support, 0, NULL, &allocator));
 
   // create node
-  RCCHECK(rclc_node_init_default(&node, "micro_ros_platformio_node", "", &support));
+  RCCHECK(
+      rclc_node_init_default(&node, "micro_ros_platformio_node", "", &support));
 
   // create subscriber
   RCCHECK(rclc_subscription_init_default(
-      &subscriber,
-      &node,
-      ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist),
-      "/cmd_vel"));
+      &subscriber, &node,
+      ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "/cmd_vel"));
 
   // create executor
   executor = rclc_executor_get_zero_initialized_executor();
   RCCHECK(rclc_executor_init(&executor, &support.context, 1, &allocator));
-  RCCHECK(rclc_executor_add_subscription(&executor, &subscriber, &msg, &subscription_callback, ON_NEW_DATA));
+  RCCHECK(rclc_executor_add_subscription(&executor, &subscriber, &msg,
+                                         &subscription_callback, ON_NEW_DATA));
 
   return true;
 }
@@ -127,16 +128,18 @@ bool destroy_entities() {
 }
 
 void estop() {
-  analogWrite(THR, 128);                      // 50% duty cycle for frequency modulation
-  analogWriteFrequency(THR, 500 / 2.729);  // divide 500 / throttle to get time high (in ms)
+  analogWrite(THR, 128); // 50% duty cycle for frequency modulation
+  analogWriteFrequency(
+      THR, 500 / 2.729); // divide 500 / throttle to get time high (in ms)
 
-  analogWrite(STR, 128);  // 50% duty cycle for frequency modulation
+  analogWrite(STR, 128);            // 50% duty cycle for frequency modulation
   analogWriteFrequency(STR, 35000); // hard code middle
 
   // digitalWrite(BRK_1, LOW);
   // digitalWrite(BRK_2, HIGH);
 
-  while (1) { };
+  while (1) {
+  };
 }
 
 void setup() {
@@ -165,23 +168,28 @@ void setup() {
 
   while (!rf95.init()) {
     Serial.println("LoRa radio init failed");
-    Serial.println("Uncomment '#define SERIAL_DEBUG' in RH_RF95.cpp for detailed debug info");
-    while (1);
+    Serial.println("Uncomment '#define SERIAL_DEBUG' in RH_RF95.cpp for "
+                   "detailed debug info");
+    while (1) {
+    };
   }
   Serial.println("LoRa radio init OK!");
 
   // Defaults after init are 434.0MHz, modulation GFSK_Rb250Fd250, +13dbM
   if (!rf95.setFrequency(RF95_FREQ)) {
     Serial.println("setFrequency failed");
-    while (1);
+    while (1) {
+    };
   }
-  Serial.print("Set Freq to: "); Serial.println(RF95_FREQ);
-  
-  // Defaults after init are 434.0MHz, 13dBm, Bw = 125 kHz, Cr = 4/5, Sf = 128chips/symbol, CRC on
+  Serial.print("Set Freq to: ");
+  Serial.println(RF95_FREQ);
+
+  // Defaults after init are 434.0MHz, 13dBm, Bw = 125 kHz, Cr = 4/5, Sf =
+  // 128chips/symbol, CRC on
 
   // The default transmitter power is 13dBm, using PA_BOOST.
-  // If you are using RFM95/96/97/98 modules which uses the PA_BOOST transmitter pin, then 
-  // you can set transmitter powers from 5 to 23 dBm:
+  // If you are using RFM95/96/97/98 modules which uses the PA_BOOST transmitter
+  // pin, then you can set transmitter powers from 5 to 23 dBm:
   rf95.setTxPower(23, false);
 
   // Configure serial transport
@@ -228,17 +236,16 @@ void loop() {
   uint8_t buf[4];
   uint8_t len = sizeof(buf);
 
-  if (rf95.recv(buf, &len))
-  {
+  if (rf95.recv(buf, &len)) {
     // RH_RF95::printBuffer("Received: ", buf, len);
     Serial.print(" | buf[3]: ");
-    Serial.print((uint8_t) buf[3]);
+    Serial.print((uint8_t)buf[3]);
     Serial.print(" | buf[2]: ");
-    Serial.print((uint8_t) buf[2]);
+    Serial.print((uint8_t)buf[2]);
     Serial.print(" | buf[1]: ");
-    Serial.print((uint8_t) buf[1]);
+    Serial.print((uint8_t)buf[1]);
     Serial.print(" | buf[0]: ");
-    Serial.print((uint8_t) buf[0]);
+    Serial.print((uint8_t)buf[0]);
     Serial.print(" | ");
     thr_lora = buf[0];
     str_lora = buf[1];
@@ -272,32 +279,36 @@ void loop() {
   digitalWrite(BRK_1, HIGH);
   digitalWrite(BRK_2, LOW);
 
-  if (estop) {
+  if (lora_estop) {
     estop();
   }
 
   switch (state) {
-    case WAITING_AGENT:
-      EXECUTE_EVERY_N_MS(500, state = (RMW_RET_OK == rmw_uros_ping_agent(100, 1)) ? AGENT_AVAILABLE : WAITING_AGENT);
-      break;
-    case AGENT_AVAILABLE:
-      state = (true == create_entities()) ? AGENT_CONNECTED : WAITING_AGENT;
-      if (state == WAITING_AGENT) {
-        destroy_entities();
-      }
-      break;
-    case AGENT_CONNECTED:
-      EXECUTE_EVERY_N_MS(200, state = (RMW_RET_OK == rmw_uros_ping_agent(100, 1)) ? AGENT_CONNECTED : AGENT_DISCONNECTED);
-      if (state == AGENT_CONNECTED) {
-        rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
-      }
-      break;
-    case AGENT_DISCONNECTED:
+  case WAITING_AGENT:
+    EXECUTE_EVERY_N_MS(500, state = (RMW_RET_OK == rmw_uros_ping_agent(100, 1))
+                                        ? AGENT_AVAILABLE
+                                        : WAITING_AGENT);
+    break;
+  case AGENT_AVAILABLE:
+    state = (true == create_entities()) ? AGENT_CONNECTED : WAITING_AGENT;
+    if (state == WAITING_AGENT) {
       destroy_entities();
-      state = WAITING_AGENT;
-      break;
-    default:
-      break;
+    }
+    break;
+  case AGENT_CONNECTED:
+    EXECUTE_EVERY_N_MS(200, state = (RMW_RET_OK == rmw_uros_ping_agent(100, 1))
+                                        ? AGENT_CONNECTED
+                                        : AGENT_DISCONNECTED);
+    if (state == AGENT_CONNECTED) {
+      rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
+    }
+    break;
+  case AGENT_DISCONNECTED:
+    destroy_entities();
+    state = WAITING_AGENT;
+    break;
+  default:
+    break;
   }
 
   if (state == AGENT_CONNECTED) {
@@ -306,19 +317,26 @@ void loop() {
     digitalWrite(LED_PIN, LOW);
   }
 
-  if (jetson_enabled) {  // alan write in here
-    analogWrite(THR, 128);                      // 50% duty cycle for frequency modulation
-    analogWriteFrequency(THR, 500 / map(thr_jetson, 0, 255, 1.729, 3.729));  // divide 500 / throttle to get time high (in ms)
+  if (jetson_enabled) {    // alan write in here
+    analogWrite(THR, 128); // 50% duty cycle for frequency modulation
+    analogWriteFrequency(
+        THR,
+        500 / map(thr_jetson, 0, 255, 1.729,
+                  3.729)); // divide 500 / throttle to get time high (in ms)
 
-    analogWrite(STR, 128);  // 50% duty cycle for frequency modulation
+    analogWrite(STR, 128); // 50% duty cycle for frequency modulation
     analogWriteFrequency(STR, map(str_jetson, 0, 255, 10000, 60000));
 
   } else {
-    analogWrite(THR, 128);                      // 50% duty cycle for frequency modulation
-    // analogWriteFrequency(THR, 500.0 / map((double) thr_lora, 0, 255, 1.729, 3.729));  // divide 500 / throttle to get time high (in ms)
-    analogWriteFrequency(THR, 500.0 / map((double) thr_lora, 0, 255, 0.456, 5.002));  // divide 500 / throttle to get time high (in ms)
+    analogWrite(THR, 128); // 50% duty cycle for frequency modulation
+    // analogWriteFrequency(THR, 500.0 / map((double) thr_lora, 0,
+    // 255, 1.729, 3.729));  // divide 500 / throttle to get time high (in ms)
+    analogWriteFrequency(
+        THR,
+        500.0 / map((double)thr_lora, 0, 255, 0.456,
+                    5.002)); // divide 500 / throttle to get time high (in ms)
 
-    analogWrite(STR, 128);  // 50% duty cycle for frequency modulation
+    analogWrite(STR, 128); // 50% duty cycle for frequency modulation
     analogWriteFrequency(STR, map(str_lora, 0, 255, 10000, 60000));
   }
 }
