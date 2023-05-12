@@ -30,6 +30,10 @@
 #define RF95_FREQ 915.0
 RH_RF95 rf95(RFM95_CS, RFM95_INT);
 
+#define LORA_MAX_TIMEOUT 1000
+// uint8_t dropped;
+uint32_t last_recv;
+
 // throttle and steering variables
 static uint8_t thr_jetson;
 static uint8_t thr_lora;
@@ -148,9 +152,11 @@ void setup() {
   digitalWrite(RFM95_RST, HIGH);
 
   Serial.begin(115200);
-  while (!Serial) {
-    delay(1);
-  }
+  // while (!Serial) {
+  //   delay(1);
+  // }
+
+  // dropped = 0; // reset number of dropped lora packets
 
   delay(100);
 
@@ -225,6 +231,8 @@ void setup() {
   digitalWrite(RST, LOW);
 
   state = WAITING_AGENT;
+
+  last_recv = millis();
 }
 
 void loop() {
@@ -238,15 +246,15 @@ void loop() {
 
   if (rf95.recv(buf, &len)) {
     // RH_RF95::printBuffer("Received: ", buf, len);
-    Serial.print(" | buf[3]: ");
-    Serial.print((uint8_t)buf[3]);
-    Serial.print(" | buf[2]: ");
-    Serial.print((uint8_t)buf[2]);
-    Serial.print(" | buf[1]: ");
-    Serial.print((uint8_t)buf[1]);
-    Serial.print(" | buf[0]: ");
-    Serial.print((uint8_t)buf[0]);
-    Serial.print(" | ");
+    // Serial.print(" | buf[3]: ");
+    // Serial.print((uint8_t)buf[3]);
+    // Serial.print(" | buf[2]: ");
+    // Serial.print((uint8_t)buf[2]);
+    // Serial.print(" | buf[1]: ");
+    // Serial.print((uint8_t)buf[1]);
+    // Serial.print(" | buf[0]: ");
+    // Serial.print((uint8_t)buf[0]);
+    // Serial.print(" | ");
     thr_lora = buf[0];
     str_lora = buf[1];
     lora_estop = buf[2] & 0x10;
@@ -262,24 +270,33 @@ void loop() {
     rf95.waitPacketSent();
     // Serial.println("Sent a reply");
 
-    Serial.print("Throttle: ");
-    Serial.print(thr_lora);
-    Serial.print(" | Steering: ");
-    Serial.print(str_lora);
-    Serial.print(" | Jetson : ");
-    Serial.print(jetson_enabled);
-    Serial.print(" | ESTOP: ");
-    Serial.println(lora_estop);
+    // Serial.print("Throttle: ");
+    // Serial.print(thr_lora);
+    // Serial.print(" | Steering: ");
+    // Serial.print(str_lora);
+    // Serial.print(" | Jetson : ");
+    // Serial.print(jetson_enabled);
+    // Serial.print(" | ESTOP: ");
+    // Serial.println(lora_estop);
+    // dropped = 0; // got a packet, reset counter
+    last_recv = millis();
   }
   // else
   // {
-  //   Serial.println("Receive failed");
+  //   // Serial.println("Receive failed");
+  //   // if ((millis() - last_recv) >= LORA_MAX_TIMEOUT) estop();
+  //   // Serial.print("dropped: ");
+  //   // Serial.println(dropped);
+  //   // delay(1);
   // }
 
   digitalWrite(BRK_1, HIGH);
   digitalWrite(BRK_2, LOW);
 
-  if (lora_estop) {
+  // Serial.print("diff: ");
+  // Serial.println((millis() - last_recv));
+
+  if (lora_estop || ((millis() - last_recv) > LORA_MAX_TIMEOUT)) {
     estop();
   }
 
@@ -328,6 +345,8 @@ void loop() {
     analogWriteFrequency(STR, map(str_jetson, 0, 255, 10000, 60000));
 
   } else {
+    Serial.print("Throttle lora: ");
+    Serial.println(thr_lora);
     analogWrite(THR, 128); // 50% duty cycle for frequency modulation
     // analogWriteFrequency(THR, 500.0 / map((double) thr_lora, 0,
     // 255, 1.729, 3.729));  // divide 500 / throttle to get time high (in ms)
