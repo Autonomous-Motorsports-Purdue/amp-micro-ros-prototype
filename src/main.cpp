@@ -139,8 +139,8 @@ void estop() {
   analogWrite(STR, 128);            // 50% duty cycle for frequency modulation
   analogWriteFrequency(STR, 35000); // hard code middle
 
-  // digitalWrite(BRK_1, LOW);
-  // digitalWrite(BRK_2, HIGH);
+  digitalWrite(BRK_1, LOW);
+  digitalWrite(BRK_2, HIGH);
 
   while (1) {
   };
@@ -265,9 +265,9 @@ void loop() {
     // Serial.println(rf95.lastRssi(), DEC);
 
     // Send a reply
-    uint8_t data[] = "$";
-    rf95.send(data, sizeof(data));
-    rf95.waitPacketSent();
+    // uint8_t data[] = "$";
+    // rf95.send(data, sizeof(data));
+    // rf95.waitPacketSent();
     // Serial.println("Sent a reply");
 
     // Serial.print("Throttle: ");
