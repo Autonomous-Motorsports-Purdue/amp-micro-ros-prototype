@@ -88,7 +88,7 @@ void subscription_callback(const void *msgin) {
   double linear = msg->linear.x;
   double angular = msg->angular.z;
 
-  str_jetson = map(constrain(angular * -1000, -300, 300), -400, 400, 0, 255);
+  str_jetson = map(constrain(angular * -1000, -400, 400), -400, 400, 0, 255);
   thr_jetson = map(constrain(linear * 1000, -700, 700), -700, 700, 0, 255);
 }
 
@@ -238,7 +238,7 @@ void setup() {
 
   digitalWrite(BRK_1, HIGH);
   digitalWrite(BRK_2, LOW);
-  delay(500);
+  delay(750);
 
   digitalWrite(BRK_1, LOW);
   digitalWrite(BRK_2, LOW);
@@ -297,14 +297,14 @@ void loop() {
     last_recv = millis();
     Serial.println("Receive success!");
   }
-  else
-  {
-    Serial.println("Receive failed");
+  // else
+  // {
+    // Serial.println("Receive failed");
   //   // if ((millis() - last_recv) >= LORA_MAX_TIMEOUT) estop();
   //   // Serial.print("dropped: ");
   //   // Serial.println(dropped);
   //   // delay(1);
-  }
+  // }
   
   // digitalWrite(BRK_1, HIGH);
   // digitalWrite(BRK_2, LOW);
@@ -312,7 +312,12 @@ void loop() {
   // Serial.print("diff: ");
   // Serial.println((millis() - last_recv));
 
-  if (lora_estop || ((millis() - last_recv) > LORA_MAX_TIMEOUT)) {
+  // if (lora_estop || ((millis() - last_recv) > LORA_MAX_TIMEOUT)) {
+  //   estop();
+  // }
+
+
+  if (lora_estop) {
     estop();
   }
 
@@ -352,13 +357,18 @@ void loop() {
 
   if (jetson_enabled) {    // alan write in here
     analogWrite(THR, 128); // 50% duty cycle for frequency modulation
+    // analogWriteFrequency(
+    //     THR,
+    //     500 / map(thr_jetson, 0, 255, 1.729,
+    //               3.729)); // divide 500 / throttle to get time high (in ms)
     analogWriteFrequency(
         THR,
-        500 / map(thr_jetson, 0, 255, 1.729,
-                  3.729)); // divide 500 / throttle to get time high (in ms)
+        500.0 / map((double) 170, 0, 255, 0.456,
+                    5.002)); // divide 500 / throttle to get time high (in ms)
 
     analogWrite(STR, 128); // 50% duty cycle for frequency modulation
     analogWriteFrequency(STR, map(str_jetson, 0, 255, 10000, 60000));
+    
 
   } else {
     // Serial.print("Throttle lora: ");
